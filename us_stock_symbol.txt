@@ -1,0 +1,19 @@
+US Stocks
+
+ Company            Symbol  
+
+ Apple              `AAPL`  
+ Microsoft          `MSFT`  
+ NVIDIA             `NVDA`  
+ Amazon             `AMZN`  
+ Alphabet (Google)  `GOOGL` 
+ Meta               `META`  
+ Tesla              `TSLA`  
+ Netflix            `NFLX`  
+ AMD                `AMD`   
+ Intel              `INTC`  
+ Coca-Cola          `KO`    
+ Walmart            `WMT`   
+ JPMorgan           `JPM`   
+ Visa               `V`     
+ McDonald's         `MCD`   

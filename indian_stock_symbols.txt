@@ -1,0 +1,24 @@
+Indian Stocks — NSE
+
+  Company               Symbol          
+
+ Reliance Industries  `RELIANCE.NS`   
+ TCS                  `TCS.NS`        
+ Infosys              `INFY.NS`       
+ HDFC Bank            `HDFCBANK.NS`   
+ ICICI Bank           `ICICIBANK.NS`  
+ State Bank of India  `SBIN.NS`       
+ Bharti Airtel        `BHARTIARTL.NS` 
+ ITC                  `ITC.NS`        
+ Larsen & Toubro      `LT.NS`         
+ Tata Motors          `TATAMOTORS.NS` 
+ Tata Steel           `TATASTEEL.NS`  
+ Asian Paints         `ASIANPAINT.NS` 
+ Maruti Suzuki        `MARUTI.NS`     
+ Bajaj Finance        `BAJFINANCE.NS` 
+ HCL Technologies     `HCLTECH.NS`    
+ Wipro                `WIPRO.NS`      
+ Adani Enterprises    `ADANIENT.NS`   
+ Adani Ports          `ADANIPORTS.NS` 
+ Sun Pharma           `SUNPHARMA.NS`  
+ Titan                `TITAN.NS`      
