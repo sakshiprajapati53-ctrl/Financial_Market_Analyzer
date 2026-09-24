@@ -36,6 +36,7 @@ Market news/fundamentals initially included nahi hain.
 Transaction costs/taxes/dividends may not be fully modeled.
 
 6. Future Scope
+Streamlit UI Interface
 Stock Suggestion
 Fundamental Analysis
 News/Sentiment Analysis
