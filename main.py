@@ -1,10 +1,38 @@
 import numpy as np
 import yfinance as yf # use to fatch real time price of the stock
-import matplotlib.pyplot as plt
+from visualizer import (plot_closing_price,plot_moving_averages,plot_volume,plot_rsi,plot_bollinger_bands)
+from analyzer import (price_statistics,calculate_daily_returns,risk_analysis,performance_analysis,drawdown_analysis,volume_analysis,price_volume_correlation,stock_analysis_score)
+from indicators import (calculate_sma,calculate_rsi,calculate_ema,calculate_bollinger_bands,get_rsi_signal,get_ema_signal,get_sma_signal,get_bollinger_signal)
 
-ticker = input("Enter stock symbol: ")
-stock = yf.Ticker(ticker)
-data = stock.history(period="1y")
+# stock data
+stock_symbol = input("Enter stock symbol: ").strip().upper()
+
+if not stock_symbol:
+    print("Stock symbol cannot be empty.")
+    exit()
+
+try:
+    stock = yf.Ticker(stock_symbol)
+    data = stock.history(period="1y")
+
+except Exception as e:
+    print("Error while fetching stock data.")
+    print("Error:", e)
+    exit()
+
+# Check data
+if data.empty:
+    print(f"No data found for {stock_symbol}.")
+    print("Please check the stock symbol and try again.")
+    exit()
+
+# Check minimum data
+if len(data) < 50:
+    print(f"Insufficient data for {stock_symbol}.")
+    print("At least 50 trading days are required.")
+    exit()
+
+data = data.dropna(subset=["Open", "High", "Low", "Close", "Volume"])
 
 # Convert columns into NumPy arrays
 open_price = data["Open"].to_numpy()
@@ -13,7 +41,6 @@ low_price = data["Low"].to_numpy()
 close_price = data["Close"].to_numpy()
 volume = data["Volume"].to_numpy()
 
-print("\nSTOCK :-", ticker)
 print("trading days:", close_price.size)
 
 print("\n ---- FIRST 5 CLOSING PRICES ----")
@@ -22,26 +49,28 @@ print(close_price[:6])
 print("\n ---- LAST 5 CLOSING PRICES ----")
 print(close_price[-6:])
 
+# data validation
+if np.isnan(close_price).any():
+    print("Warning: Missing closing price data found.")
+
+if np.isnan(volume).any():
+    print("Warning: Missing volume data found.")
+
 # price statistics
-avg_price = np.mean(close_price)
-median_price = np.median(close_price)
-highest_price = np.max(close_price)
-lowest_price = np.min(close_price)
-price_std = np.std(close_price)
+stats = price_statistics(close_price)
 
 print("\n---------- PRICE STATISTICS ------------")
-
-print(f"Average Price : {avg_price:.2f}")
-print(f"Median Price  : {median_price:.2f}")
-print(f"Highest Price : {highest_price:.2f}")
-print(f"Lowest Price  : {lowest_price:.2f}")
-print(f"Std Deviation : {price_std:.2f}")
+print(f"Average Price : {stats['average']:.2f}")
+print(f"Median Price  : {stats['median']:.2f}")
+print(f"Highest Price : {stats['highest']:.2f}")
+print(f"Lowest Price  : {stats['lowest']:.2f}")
+print(f"Std Deviation : {stats['std']:.2f}")
 
 # highest and lowest trading date
 
 # highest and lowest index
-highest_index = np.argmax(close_price)
-lowest_index = np.argmin(close_price)
+highest_index = stats["highest_index"]
+lowest_index = stats["lowest_index"]
 
 # highest and lowest date
 highest_date = data.index[highest_index]
@@ -53,13 +82,7 @@ print("Highest Price Date:", highest_date)
 print("Lowest Price Date :", lowest_date)
 
 # daily returns
-
-daily_returns = ((close_price[1:] - close_price[:-1]) / close_price[:-1]) * 100
-# include 2nd to last price - include first to 2nd last price
-
-# yesterday close = ₹100
-# today close     = ₹105
-# return = (105 - 100) / 100 × 100 = 5%
+daily_returns = calculate_daily_returns(close_price)
 
 print("\n--------- DAILY RETURNS --------")
 print("First 10 Daily Returns:")
@@ -81,49 +104,33 @@ avg_return = np.mean(daily_returns)
 print("Average Daily Return:", f"{avg_return:.2f}%")
 
 # volatility and risk analysis
-volatility = np.std(daily_returns)
-
 print("\n--------- RISK ANALYSIS ---------")
 
-print(f"Daily Volatility : {volatility:.2f}%")
+risk = risk_analysis(daily_returns)
 
-# Annualized Volatility
-annual_volatility = volatility * np.sqrt(252)
+print(
+    f"Daily Volatility : "
+    f"{risk['daily_volatility']:.2f}%"
+)
 
-print(f"Annualized Volatility : {annual_volatility:.2f}%")
+print(
+    f"Annualized Volatility : "
+    f"{risk['annual_volatility']:.2f}%"
+)
 
-# risk classification
-if annual_volatility < 25:
-    risk = "LOW"
-elif annual_volatility < 42:
-    risk = "MEDIUM"
-else:
-    risk = "HIGH"
+print(
+    f"Downside Volatility : "
+    f"{risk['downside_volatility']:.2f}%"
+)
 
-print("Risk Level:", risk)
-
-# downside risk
-downside_volatility = np.std(negative_days)
-
-print(f"Downside Volatility : {downside_volatility:.2f}%")
-
-print("\n--------- DOWNSIDE RISK ANALYSIS ---------")
-
-print(f"Daily Volatility      : {volatility:.2f}%")
-print(f"Annualized Volatility : {annual_volatility:.2f}%")
-print(f"Downside Volatility   : {downside_volatility:.2f}%")
-print(f"Risk Level            : {risk}")
+print("Risk Level:", risk["risk"])
 
 # Simple Moving Average (SMA) :- it show short term stock price very smooth
 # moving avg
 
 window = 20
 
-moving_average = np.convolve(
-    close_price,
-    np.ones(window) / window,
-    mode="valid"
-)
+moving_average = calculate_sma(close_price, window)
 
 print("\n---------MOVING AVERAGE ----------")
 print(f"{window}-Day SMA:")
@@ -145,17 +152,8 @@ print("Trend:", trend)
 
 # 20-Day + 50-Day SMA
 
-sma_20 = np.convolve(
-    close_price,
-    np.ones(20) / 20,
-    mode="valid"
-)
-
-sma_50 = np.convolve(
-    close_price,
-    np.ones(50) / 50,
-    mode="valid"
-)
+sma_20 = calculate_sma(close_price, 20)
+sma_50 = calculate_sma(close_price, 50)
 
 print("\n--------- TREND ANALYSIS ---------")
 print("20-Day SMA:", sma_20[-1])
@@ -170,19 +168,21 @@ print("Trend:", trend)
 
 # PERFORMANCE ANALYSIS
 
-initial_price = close_price[0]
-final_price = close_price[-1]
+performance = performance_analysis(close_price)
 
-total_return = (
-    (final_price - initial_price)
-    / initial_price
-) * 100
+initial_price = performance["initial_price"]
+final_price = performance["final_price"]
+
+main_stock_return = performance["total_return"]
 
 print("\n------- PERFORMANCE --------")
-
 print(f"Initial Price : {initial_price:.2f}")
 print(f"Final Price   : {final_price:.2f}")
-print(f"Total Return  : {total_return:.2f}%")
+print(f"Total Return  : {main_stock_return:.2f}%")
+
+print(f"Initial Investment : ₹{performance['initial_investment']:.2f}")
+print(f"Final Investment   : ₹{performance['final_investment']:.2f}")
+print(f"Profit / Loss      : ₹{performance['profit_loss']:.2f}")
 
 # best and worst trading days
 
@@ -202,16 +202,7 @@ print(f"Worst Day : {worst_day} ({worst_return:.2f}%)")
 
 # max drawdown
 
-# Running maximum price
-running_max = np.maximum.accumulate(close_price)
-
-# Drawdown percentage
-drawdown = (
-    (close_price - running_max)
-    / running_max
-) * 100
-
-max_drawdown = np.min(drawdown)
+max_drawdown = drawdown_analysis(close_price)
 
 print("\n-------- DRAWDOWN -------")
 print(f"Maximum Drawdown : {max_drawdown:.2f}%")
@@ -223,41 +214,35 @@ print(f"Maximum Drawdown : {max_drawdown:.2f}%")
 
 # VOLUME ANALYSIS
 
-average_volume = np.mean(volume)
-highest_volume = np.max(volume)
-lowest_volume = np.min(volume)
+volume_stats = volume_analysis(volume)
+
+average_volume = volume_stats["average_volume"]
+highest_volume = volume_stats["highest_volume"]
+lowest_volume = volume_stats["lowest_volume"]
 
 print("\n--------- VOLUME ANALYSIS --------")
-
 print(f"Average Volume : {average_volume:.0f}")
 print(f"Highest Volume : {highest_volume:.0f}")
 print(f"Lowest Volume  : {lowest_volume:.0f}")
 
 # Highest volume day
 
-highest_volume_index = np.argmax(volume)
+highest_volume_index = volume_stats["highest_volume_index"]
 
 print("\nHighest Volume Day:")
-
 print("Date  :", data.index[highest_volume_index])
 print("Volume:", volume[highest_volume_index])
 
 # Volume spikes
 
-volume_threshold = average_volume * 2
-
-volume_spikes = volume[volume > volume_threshold]
-
-print("\nVolume Spikes:", len(volume_spikes))
+print("\nVolume Spikes:", volume_stats["volume_spikes"])
 
 # Price-volume correlation
 
-daily_volume = volume[1:]
-
-correlation = np.corrcoef(
+correlation = price_volume_correlation(
     daily_returns,
-    daily_volume
-)[0, 1]
+    volume
+)
 
 print("\n-------- PRICE-VOLUME RELATIONSHIP --------")
 
@@ -294,12 +279,22 @@ valid_tickers = []
 # Fetch data for every stock
 
 for ticker in tickers:
+    try:
+        stock_compare = yf.Ticker(ticker)
+        data_stock = stock_compare.history(period="1y")
+    except Exception as e:
+        print(f"Error fetching {ticker}: {e}")
+        continue
 
-    stock = yf.Ticker(ticker)
-    data_stock = stock.history(period="1y")
-
+# data safety
     if data_stock.empty:
-        print(f"No data found for {ticker}")
+        print(f"No datafound for {ticker}")
+        continue
+
+    data_stock = data_stock.dropna(subset=["Close"])
+
+    if len(data_stock) < 2:
+        print(f"Insufficient data for {ticker}")
         continue
 
     close = data_stock["Close"].to_numpy()
@@ -322,6 +317,11 @@ for ticker in tickers:
     all_total_returns.append(total_return)
     valid_tickers.append(ticker)
 
+# Check if valid stocks exist
+
+if len(all_returns) == 0:
+    print("No valid stocks found.")
+    exit()
 
 # Make all arrays same length
 
@@ -336,42 +336,32 @@ all_returns = [
 ]
 
 # Convert to 2D NumPy array
-
 returns_matrix = np.array(all_returns)
 
 print("\nReturns Matrix Shape:")
 print(returns_matrix.shape)
 
 # Average daily return
-
 average_returns = np.mean(
     returns_matrix,
     axis=1
 )
 
 # Volatility
-
 volatilities = np.std(
     returns_matrix,
     axis=1
 )
 
 # Convert total returns to NumPy array
-
-total_returns = np.array(
-    all_total_returns
-)
+total_returns = np.array(all_total_returns)
 
 # Ranking
-
-ranking_indices = np.argsort(
-    total_returns
-)[::-1]
+ranking_indices = np.argsort(total_returns)[::-1]
 
 # Display results
 
 print("\n--------- STOCK RANKING --------")
-
 print(
     f"{'Rank':<6}"
     f"{'Stock':<15}"
@@ -382,11 +372,7 @@ print(
 
 print("-" * 74)
 
-for rank, index in enumerate(
-    ranking_indices,
-    start=1
-):
-
+for rank, index in enumerate(ranking_indices, start=1):
     print(
         f"{rank:<6}"
         f"{valid_tickers[index]:<15}"
@@ -399,176 +385,63 @@ for rank, index in enumerate(
 # technical analysis
 
 # 1. RSI - Relative Strength Index
-
-price_change = close_price[1:] - close_price[:-1]
-
-gains = np.where(
-    price_change > 0,
-    price_change,
-    0
-)
-
-losses = np.where(
-    price_change < 0,
-    -price_change,
-    0
-)
-
-rsi_period = 14
-
-average_gain = np.convolve(
-    gains,
-    np.ones(rsi_period) / rsi_period,
-    mode="valid"
-)
-
-average_loss = np.convolve(
-    losses,
-    np.ones(rsi_period) / rsi_period,
-    mode="valid"
-)
-
-# Avoid division by zero
-
-rs = average_gain / (
-    average_loss + 1e-10
-)
-
-rsi = 100 - (
-    100 / (1 + rs)
-)
-
+rsi = calculate_rsi(close_price)
 current_rsi = rsi[-1]
 
 # RSI Signal
-
-if current_rsi > 70:
-    rsi_signal = "OVERBOUGHT"
-
-elif current_rsi < 30:
-    rsi_signal = "OVERSOLD"
-
-else:
-    rsi_signal = "NEUTRAL"
-
+rsi_signal = get_rsi_signal(rsi)
 
 # 2. Bollinger Bands
-
 bb_window = 20
 
 # Middle Band = 20-Day SMA
-
-middle_band = np.convolve(
-    close_price,
-    np.ones(bb_window) / bb_window,
-    mode="valid"
-)
+middle_band, upper_band, lower_band = calculate_bollinger_bands(close_price,bb_window)
 
 # Create rolling windows
-
-windows = np.lib.stride_tricks.sliding_window_view(
-    close_price,
-    bb_window
-)
-
 # Standard deviation of every window
-
-rolling_std = np.std(
-    windows,
-    axis=1
-)
-
 # Upper and Lower Bands
-
-upper_band = (
-    middle_band
-    + 2 * rolling_std
-)
-
-lower_band = (
-    middle_band
-    - 2 * rolling_std
-)
-
 # Bollinger Signal
 
 current_price = close_price[-1]
-
-if current_price > upper_band[-1]:
-
-    bb_signal = "ABOVE UPPER BAND"
-
-elif current_price < lower_band[-1]:
-
-    bb_signal = "BELOW LOWER BAND"
-
-else:
-
-    bb_signal = "INSIDE BANDS"
-
+bb_signal = get_bollinger_signal(current_price,upper_band,lower_band)
 
 # 3. EMA - Exponential Moving Average
-
 ema_period = 20
-
-alpha = 2 / (ema_period + 1)
-
-ema = np.zeros(
-    len(close_price)
-)
-
-# First EMA value
-
-ema[0] = close_price[0]
-
-# Calculate remaining EMA values
-
-for i in range(1, len(close_price)):
-
-    ema[i] = (
-        alpha * close_price[i]
-        + (1 - alpha) * ema[i - 1]
-    )
-
+ema = calculate_ema(close_price,ema_period)
 current_ema = ema[-1]
 
-
 # EMA Signal
-
-if current_price > current_ema:
-
-    ema_signal = "BULLISH"
-
-else:
-
-    ema_signal = "BEARISH"
-
+ema_signal = get_ema_signal(current_price,ema)
 
 # FINAL TECHNICAL ANALYSIS
 
-print("\n")
-
+print("=" * 55)
+print("------------TECHNICAL ANALYSIS -----------")
 print("=" * 55)
 
-print("              TECHNICAL ANALYSIS")
-
-print("=" * 55)
-
-print(f"\nStock         : {ticker}")
+print(f"\nStock         : {stock_symbol}")
 print(f"Current Price : {current_price:.2f}")
 
 print("\n---------- RSI ----------")
-
 print(f"RSI           : {current_rsi:.2f}")
 print(f"RSI Signal    : {rsi_signal}")
 
-print("\n---------- EMA ----------")
+print("\n---------- SMA ----------")
+print(f"20-Day SMA    : {sma_20[-1]:.2f}")
+print(f"50-Day SMA    : {sma_50[-1]:.2f}")
 
+sma_signal = get_sma_signal(
+    sma_20,
+    sma_50
+)
+
+print(f"SMA Signal    : {sma_signal}")
+
+print("\n---------- EMA ----------")
 print(f"20-Day EMA    : {current_ema:.2f}")
 print(f"EMA Signal    : {ema_signal}")
 
 print("\n------ Bollinger Bands ------")
-
 print(f"Upper Band    : {upper_band[-1]:.2f}")
 print(f"Middle Band   : {middle_band[-1]:.2f}")
 print(f"Lower Band    : {lower_band[-1]:.2f}")
@@ -576,179 +449,32 @@ print(f"BB Signal     : {bb_signal}")
 
 print("\n" + "=" * 55)
 
+# VISUALIZATION
 
-# ============================================================
-# STEP 11 - VISUALIZATION
-# ============================================================
+plot_closing_price(data,close_price,stock_symbol)
+plot_moving_averages(data,close_price,sma_20,sma_50,stock_symbol)
+plot_volume(data,volume,stock_symbol)
+plot_rsi(data,rsi,stock_symbol)
+plot_bollinger_bands(data,close_price,middle_band,upper_band,lower_band,stock_symbol)
 
-# 1. Closing Price Chart
-
-plt.figure(figsize=(12, 6))
-
-plt.plot(
-    data.index,
-    close_price,
-    label="Closing Price"
-)
-
-plt.title(f"{ticker} - Closing Price")
-
-plt.xlabel("Date")
-plt.ylabel("Price")
-
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-
-plt.show()
-
-
-# 2. Closing Price + SMA
-
-plt.figure(figsize=(12, 6))
-
-plt.plot(
-    data.index,
-    close_price,
-    label="Closing Price"
-)
-
-# SMA 20 ke dates
-
-sma_20_dates = data.index[19:]
-
-plt.plot(
-    sma_20_dates,
+# FINAL STOCK ANALYSIS
+# function calls --> of analyzer.py
+score, suggestion, reasons = stock_analysis_score(
+    current_price,
+    current_rsi,
+    ema,
     sma_20,
-    label="20-Day SMA"
-)
-
-# SMA 50 ke dates
-
-sma_50_dates = data.index[49:]
-
-plt.plot(
-    sma_50_dates,
     sma_50,
-    label="50-Day SMA"
+    main_stock_return,
+    risk["annual_volatility"],
+    bb_signal
 )
 
-plt.title(
-    f"{ticker} - Price & Moving Averages"
-)
+print("------FINAL STOCK ANALYSIS------")
+print("Stock         :", stock_symbol)
+print("Analysis Score:", score)
+print("Overall Signal:", suggestion)
+print("\nReasons:")
 
-plt.xlabel("Date")
-plt.ylabel("Price")
-
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-
-plt.show()
-
-
-# 3. Volume Chart
-
-plt.figure(figsize=(12, 5))
-
-plt.bar(
-    data.index,
-    volume
-)
-
-plt.title(
-    f"{ticker} - Trading Volume"
-)
-
-plt.xlabel("Date")
-plt.ylabel("Volume")
-
-plt.grid(True)
-plt.tight_layout()
-
-plt.show()
-
-
-# 4. RSI Chart
-
-# RSI starts after the initial calculation period
-
-rsi_dates = data.index[15:]
-
-plt.figure(figsize=(12, 5))
-
-plt.plot(
-    rsi_dates,
-    rsi,
-    label="RSI"
-)
-
-plt.axhline(
-    70,
-    linestyle="--",
-    label="Overbought (70)"
-)
-
-plt.axhline(
-    30,
-    linestyle="--",
-    label="Oversold (30)"
-)
-
-plt.title(
-    f"{ticker} - RSI"
-)
-
-plt.xlabel("Date")
-plt.ylabel("RSI")
-
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-
-plt.show()
-
-
-# 5. Bollinger Bands
-
-bb_dates = data.index[19:]
-
-plt.figure(figsize=(12, 6))
-
-plt.plot(
-    bb_dates,
-    close_price[19:],
-    label="Closing Price"
-)
-
-plt.plot(
-    bb_dates,
-    middle_band,
-    label="Middle Band"
-)
-
-plt.plot(
-    bb_dates,
-    upper_band,
-    label="Upper Band"
-)
-
-plt.plot(
-    bb_dates,
-    lower_band,
-    label="Lower Band"
-)
-
-plt.title(
-    f"{ticker} - Bollinger Bands"
-)
-
-plt.xlabel("Date")
-plt.ylabel("Price")
-
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-
-plt.show()
-
+for reason in reasons:
+    print("-", reason)
